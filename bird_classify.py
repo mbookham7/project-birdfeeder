@@ -96,67 +96,46 @@ def user_selections():
 
 
 def main():
-    """Creates camera pipeline, and pushes pipeline through ClassificationEngine
-    model. Logs results to user-defined storage. Runs either in training mode to
-    gather images for custom model creation or in deterrent mode that sounds an
-    'alarm' if a defined label is detected."""
-    args = user_selections()
-    print("Loading %s with %s labels." % (args.model, args.labels))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', required=True, help='File path of .tflite file.')
+    parser.add_argument('--labels', required=True, help='File path of labels file.')
+    parser.add_argument('--videosrc', required=True, help='Device path of video source.')
+    parser.add_argument('--storage', required=True, help='Directory to store captured images.')
+    parser.add_argument('--sound', required=True, help='File path of deterrent sound.')
+    parser.add_argument('--print', type=bool, default=False, help='Print results to terminal.')
+    args = parser.parse_args()
+
     interpreter = make_interpreter(args.model)
     interpreter.allocate_tensors()
     labels = read_label_file(args.labels)
-    input_tensor_shape = interpreter.get_input_details()[0]['shape']
-    if (input_tensor_shape.size != 4 or
-            input_tensor_shape[0] != 1):
-        raise RuntimeError(
-            'Invalid input tensor shape! Expected: [1, height, width, channel]')
+    inference_size = common.input_size(interpreter)
 
-    output_tensors = len(interpreter.get_output_details())
-    if output_tensors != 1:
-        raise ValueError(
-            ('Classification model should have 1 output tensor only!'
-             'This model has {}.'.format(output_tensors)))
-    storage_dir = args.storage
-    # Initialize logging file
-    logging.basicConfig(filename='%s/results.log' % storage_dir,
-                        format='%(asctime)s-%(message)s',
-                        level=logging.DEBUG)
-    last_time = time.monotonic()
-    last_results = [('label', 0)]
+    # Define the labels for animals to deter
+    DETER_LABELS = [
+        'fox squirrel, eastern fox squirrel, Sciurus niger',
+        'heron',
+        'otter',
+        'cat',
+        'mink'
+    ]
 
     def user_callback(image, svg_canvas):
-        nonlocal last_time
-        nonlocal last_results
         start_time = time.monotonic()
-        common.set_resized_input(
-            interpreter, image.size, lambda size: image.resize(size, Image.NEAREST))
+        common.set_input(interpreter, image)
         interpreter.invoke()
-        results = get_classes(interpreter, args.top_k, args.threshold)
+        results = get_classes(interpreter, top_k=1)
         end_time = time.monotonic()
-        play_sounds = [labels[i] for i, score in results]
-        results = [(labels[i], score) for i, score in results]
+
         if args.print:
             print_results(start_time, last_time, end_time, results)
 
-        if args.training:
-            if do_training(results, last_results, args.top_k):
-                save_data(image, results, storage_dir)
-        else:
-            # Custom model mode:
-            # The labels can be modified to detect/deter user-selected items
-            if len(results):
-                if results[0][0] != 'background':
-                    save_data(image,  results, storage_dir)
-
-            if FOX_SQUIRREL_LABEL in play_sounds:
+        for result in results:
+            if labels[result.id] in DETER_LABELS:
                 playsound(args.sound)
-                logging.info('Deterrent sounded')
+                save_data(image, results, args.storage)
+                break
 
-        last_results = results
-        last_time = end_time
-    gstreamer.run_pipeline(user_callback, videosrc=args.videosrc)
-
+    gstreamer.run_pipeline(user_callback, src=args.videosrc, appsink_size=inference_size)
 
 if __name__ == '__main__':
-    FOX_SQUIRREL_LABEL = 'fox squirrel, eastern fox squirrel, Sciurus niger'
     main()
