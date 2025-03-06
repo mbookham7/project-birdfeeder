@@ -24,3 +24,5 @@ python3 bird_classify.py \
 	--storage sdcard_directory \
 	--sound sound_file.wav \
 	--print True
+
+python3 app.py

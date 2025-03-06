@@ -29,6 +29,7 @@ model.
 import argparse
 import time
 import logging
+import json
 from PIL import Image
 from playsound import playsound
 
@@ -48,6 +49,10 @@ def save_data(image, results, path, ext='png'):
     image.save(name)
     print('Frame saved as: %s' % name)
     logging.info('Image: %s Results: %s', tag, results)
+    # Save results as JSON
+    results_name = '%s/img-%s.json' % (path, tag)
+    with open(results_name, 'w') as f:
+        json.dump(results, f)
 
 
 def print_results(start_time, last_time, end_time, results):

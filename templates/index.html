@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bird Feeder Visits</title>
+</head>
+<body>
+    <h1>Bird Feeder Visits</h1>
+    <form action="{{ url_for('update_classification') }}" method="post">
+        <label for="new_labels">Update Classification:</label>
+        <input type="text" id="new_labels" name="new_labels">
+        <button type="submit">Update</button>
+    </form>
+    <h2>Visits</h2>
+    <ul>
+        {% for visit in visits %}
+            <li>
+                <img src="{{ url_for('static', filename=visit.image) }}" alt="Visit Image">
+                <pre>{{ visit.results }}</pre>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
